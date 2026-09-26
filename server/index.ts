@@ -1,6 +1,8 @@
 import express from "express";
 import cors from "cors";
 import { createGatewayMiddleware } from "@circle-fin/x402-batching/server";
+import { join } from "path";
+import { existsSync } from "fs";
 
 // Arc mainnet Gateway facilitator URL
 const FACILITATOR_URL = "https://gateway-api.circle.com";
