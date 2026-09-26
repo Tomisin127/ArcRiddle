@@ -27,3 +27,6 @@ primary_region = 'iad'
 
 [[vm]]
   size = 'shared-cpu-1x'
+
+  [build.args]
+  VITE_SELLER_ADDRESS = "0x72110c7117Ee3D0BC77D4682107EA04b02312ED6"
