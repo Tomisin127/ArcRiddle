@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+contracts/out/
+contracts/cache/
+
+# Foundry
+lib/
+
+# Deployment configs (not needed in repo)
+Dockerfile
+fly.toml
+.dockerignore
+
+# Environment — never commit secrets
+.env
+.env.*
+!.env.example
+
+# Circle
+.circle/
+
+# Logs & debug
+*.log
+console.jsonl
+traces.jsonl
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Bun
+.bun/

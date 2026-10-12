@@ -7,8 +7,7 @@ import { existsSync } from "fs";
 // Arc mainnet Gateway facilitator URL
 const FACILITATOR_URL = "https://gateway-api.circle.com";
 
-const SELLER_ADDRESS =
-  (process.env.VITE_SELLER_ADDRESS as `0x${string}`);
+const SELLER_ADDRESS = process.env.VITE_SELLER_ADDRESS as `0x${string}`;
 
 if (!SELLER_ADDRESS) {
   throw new Error("VITE_SELLER_ADDRESS env var is required");
@@ -24,8 +23,7 @@ const RIDDLES = [
     hint: "Think about what bounces back from mountains or empty rooms.",
   },
   {
-    question:
-      "The more you take, the more you leave behind. What am I?",
+    question: "The more you take, the more you leave behind. What am I?",
     answer: "Footsteps",
     hint: "Think about what you leave on a snowy path.",
   },
@@ -36,14 +34,12 @@ const RIDDLES = [
     hint: "You hold me in your hands to find your way.",
   },
   {
-    question:
-      "What has hands but cannot clap?",
+    question: "What has hands but cannot clap?",
     answer: "A clock",
     hint: "You look at me to find out the time.",
   },
   {
-    question:
-      "I am always in front of you but cannot be seen. What am I?",
+    question: "I am always in front of you but cannot be seen. What am I?",
     answer: "The future",
     hint: "It is something that has not happened yet.",
   },
@@ -54,14 +50,12 @@ const RIDDLES = [
     hint: "Think of a flowing body of water.",
   },
   {
-    question:
-      "The more you share me, the less you have of me. What am I?",
+    question: "The more you share me, the less you have of me. What am I?",
     answer: "A secret",
     hint: "You whisper me to a friend.",
   },
   {
-    question:
-      "I have one eye but cannot see. What am I?",
+    question: "I have one eye but cannot see. What am I?",
     answer: "A needle",
     hint: "You use me to sew clothes.",
   },
@@ -85,13 +79,14 @@ const gateway = createGatewayMiddleware({
   facilitatorUrl: FACILITATOR_URL,
 });
 
+// ── API routes — registered BEFORE express.static ─────────────────────────────
+
 // Health check — unpaid
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", network: "arc-mainnet", price: PRICE });
 });
 
-// Riddle endpoint — requires 0.001 USDC paid via x402 Gateway
-app.get("/riddle", gateway.require(PRICE), (_req, res) => {
+function riddleHandler(_req: express.Request, res: express.Response) {
   const riddle = RIDDLES[Math.floor(Math.random() * RIDDLES.length)];
   res.json({
     question: riddle.question,
@@ -102,7 +97,21 @@ app.get("/riddle", gateway.require(PRICE), (_req, res) => {
     seller: SELLER_ADDRESS,
     network: "arc-mainnet",
   });
-});
+}
+
+// Canonical path used by CLI: GET /riddle
+// Also accepts GET /api/riddle (Vite dev-proxy path from the frontend)
+app.get("/riddle", gateway.require(PRICE), riddleHandler);
+app.get("/api/riddle", gateway.require(PRICE), riddleHandler);
+
+// ── Static frontend (production only, AFTER API routes) ───────────────────────
+const distPath = join(import.meta.dir, "../dist");
+if (existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.use((_req: express.Request, res: express.Response) => {
+    res.sendFile(join(distPath, "index.html"));
+  });
+}
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3001;
 app.listen(PORT, () => {
@@ -110,4 +119,5 @@ app.listen(PORT, () => {
   console.log(`Seller address: ${SELLER_ADDRESS}`);
   console.log(`Riddle price: ${PRICE}`);
   console.log(`Facilitator: ${FACILITATOR_URL}`);
+  if (existsSync(distPath)) console.log(`Serving frontend from ${distPath}`);
 });
