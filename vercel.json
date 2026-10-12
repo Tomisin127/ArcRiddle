@@ -1,0 +1,15 @@
+{
+  "buildCommand": "bunx vite build",
+  "outputDirectory": "dist",
+  "framework": null,
+  "functions": {
+    "api/riddle.ts": {
+      "runtime": "@vercel/node"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/riddle", "destination": "/api/riddle" },
+    { "source": "/api/health", "destination": "/api/riddle" },
+    { "source": "/(.*)",       "destination": "/index.html" }
+  ]
+}
