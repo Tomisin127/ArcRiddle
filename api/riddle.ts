@@ -1,12 +1,18 @@
-// Vercel serverless function — replaces the Express server for Vercel deployments.
-// Vercel auto-discovers this file at GET/POST /api/riddle.
-// The @circle-fin/x402-batching gateway middleware works identically here.
+// Vercel serverless function — x402 riddle endpoint.
+// Vercel routes /api/riddle and /api/health to this file via vercel.json.
+// The Express app is built once at module level and reused across warm invocations.
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import express from "express";
+import cors from "cors";
 import { createGatewayMiddleware } from "@circle-fin/x402-batching/server";
 
 const FACILITATOR_URL = "https://gateway-api.circle.com";
-const SELLER_ADDRESS = process.env.VITE_SELLER_ADDRESS as `0x${string}`;
+const SELLER_ADDRESS = (process.env.VITE_SELLER_ADDRESS ?? "") as `0x${string}`;
 const PRICE = "$0.001";
+
+if (!SELLER_ADDRESS) {
+  console.error("[riddle] VITE_SELLER_ADDRESS env var is not set");
+}
 
 const RIDDLES = [
   {
@@ -51,37 +57,23 @@ const RIDDLES = [
   },
 ];
 
-// createGatewayMiddleware returns an Express-compatible middleware pair.
-// For Vercel we wrap it manually: call gateway.require() to get the middleware,
-// then invoke it against a minimal Express-like req/res shim.
-// Simpler: use the BatchFacilitatorClient directly via the middleware's internal
-// verify step — but the easiest correct approach is to use express on Vercel
-// via a micro-adapter, which Vercel supports natively.
-
-import express from "express";
-import cors from "cors";
-
-// Build a tiny Express app once (module-level, reused across warm invocations).
+// Build Express app once — warm Lambda invocations reuse this instance.
 const app = express();
 
 app.use(cors({
   origin: "*",
   methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Payment", "Payment-Required"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Payment", "Payment-Required", "X-PAYMENT"],
   exposedHeaders: ["X-Payment", "Payment-Required", "PAYMENT-REQUIRED"],
 }));
 app.use(express.json());
 
-if (!SELLER_ADDRESS) {
-  console.error("VITE_SELLER_ADDRESS env var is not set");
-}
-
 const gateway = createGatewayMiddleware({
-  sellerAddress: SELLER_ADDRESS || "0x0000000000000000000000000000000000000000",
+  sellerAddress: SELLER_ADDRESS,
   facilitatorUrl: FACILITATOR_URL,
 });
 
-function riddleHandler(_req: express.Request, res: express.Response) {
+function riddleHandler(_req: express.Request, res: express.Response): void {
   const riddle = RIDDLES[Math.floor(Math.random() * RIDDLES.length)];
   res.json({
     question: riddle.question,
@@ -94,13 +86,21 @@ function riddleHandler(_req: express.Request, res: express.Response) {
   });
 }
 
-app.get("/api/riddle", gateway.require(PRICE), riddleHandler);
-app.get("/riddle",     gateway.require(PRICE), riddleHandler);
-app.get("/api/health", (_req, res) => res.json({ status: "ok", price: PRICE }));
+// Health — unpaid
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok", network: "arc-mainnet", price: PRICE });
+});
 
-// Vercel passes (req, res) — delegate straight to the Express app.
-export default function handler(req: VercelRequest, res: VercelResponse) {
-  // Vercel already parsed the URL; Express needs the full path on req.url.
-  // Rewrite /api/riddle → /api/riddle (already correct) or /riddle → /riddle.
-  return app(req as unknown as express.Request, res as unknown as express.Response);
+// Riddle — requires x402 payment
+app.get("/api/riddle", gateway.require(PRICE), riddleHandler);
+
+// Vercel handler: patch req.url so Express matches the /api/* routes above,
+// then delegate to the Express app.
+export default function handler(req: VercelRequest, res: VercelResponse): void {
+  // Vercel strips the path prefix before calling the function on some runtimes;
+  // ensure the full path is present so our route patterns match.
+  if (req.url && !req.url.startsWith("/api/")) {
+    req.url = "/api/riddle";
+  }
+  app(req as unknown as express.Request, res as unknown as express.Response);
 }
