@@ -77,6 +77,9 @@ app.use(express.json());
 const gateway = createGatewayMiddleware({
   sellerAddress: SELLER_ADDRESS,
   facilitatorUrl: FACILITATOR_URL,
+  // Lock to Arc mainnet only — without this the middleware advertises every
+  // supported chain and the buyer's wallet picks whichever it has funds on.
+  networks: "eip155:5042",
 });
 
 // ── API routes — registered BEFORE express.static ─────────────────────────────
